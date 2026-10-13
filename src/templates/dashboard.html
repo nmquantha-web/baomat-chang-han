@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard – NetGuard IDS</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    :root { --primary:#0d1b2a; --accent:#00b4d8; --card-bg:#162032; --border:#1e3a5f; }
+    body { background:var(--primary); color:#cdd9e5; font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+    .navbar { background:rgba(13,27,42,.95); border-bottom:1px solid var(--border); }
+    .navbar-brand { color:var(--accent) !important; font-weight:700; }
+    .nav-link { color:#8ba0b4 !important; }
+    .nav-link:hover,.nav-link.active { color:var(--accent) !important; }
+
+    .page-header { padding:40px 20px 24px; border-bottom:1px solid var(--border); margin-bottom:32px; }
+    .page-header h2 { font-size:1.6rem; font-weight:800; color:#e8f4f8; margin:0; }
+
+    .card-box { background:var(--card-bg); border:1px solid var(--border); border-radius:12px; padding:22px 20px; }
+    .card-box h6 { color:#e8f4f8; font-weight:700; margin-bottom:14px; font-size:1rem; }
+
+    /* Job list */
+    .job-row {
+      background: rgba(255,255,255,.03);
+      border: 1px solid rgba(30,58,95,.6);
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      transition: border-color .2s;
+    }
+    .job-row:hover { border-color: var(--accent); }
+    .job-id { font-family:monospace; color:var(--accent); font-size:.85rem; }
+    .job-status-done     { color:#06d6a0; }
+    .job-status-processing { color:#ffd166; }
+    .job-status-error    { color:#ef233c; }
+    .job-status-queued   { color:#8ba0b4; }
+
+    .btn-view {
+      background: rgba(0,180,216,.15);
+      border: 1px solid rgba(0,180,216,.4);
+      color: var(--accent);
+      border-radius: 7px;
+      padding: 5px 14px;
+      font-size: .82rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-view:hover { background: rgba(0,180,216,.28); color: var(--accent); }
+
+    /* Empty state */
+    .empty-state { text-align:center; padding: 60px 20px; color:#4a6274; }
+    .empty-state i { font-size:3rem; margin-bottom:16px; display:block; }
+
+    footer { text-align:center; padding:24px; color:#3d5a73; font-size:.82rem; border-top:1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg sticky-top">
+  <div class="container">
+    <a class="navbar-brand" href="/"><i class="fas fa-shield-halved me-2"></i>NetGuard IDS</a>
+    <div class="d-flex gap-3 ms-auto">
+      <a class="nav-link" href="/"><i class="fas fa-upload me-1"></i>Phân tích</a>
+      <a class="nav-link active" href="/dashboard"><i class="fas fa-chart-bar me-1"></i>Dashboard</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <h2><i class="fas fa-chart-bar me-2" style="color:var(--accent)"></i>Dashboard Tổng Hợp</h2>
+    <small style="color:#5e7d9c">Lịch sử tất cả phiên phân tích trong phiên làm việc</small>
+  </div>
+
+  <div class="row g-4">
+    <!-- JOBS LIST -->
+    <div class="col-lg-7">
+      <div class="card-box">
+        <h6><i class="fas fa-list-check me-2" style="color:var(--accent)"></i>Lịch sử phân tích</h6>
+
+        {% if jobs %}
+          {% for job in jobs | sort(attribute='created_at', reverse=True) %}
+          <div class="job-row">
+            <div>
+              <div class="job-id">{{ job.job_id }}</div>
+              <div style="font-size:.85rem; color:#cdd9e5; margin-top:2px;">{{ job.filename }}</div>
+              <div style="font-size:.78rem; color:#4a6274; margin-top:2px;">
+                {{ job.created_at }} · {{ job.file_size }} MB
+                {% if job.total_rows %} · {{ job.total_rows | int | filesizeformat if false else job.total_rows | string }} dòng{% endif %}
+                {% if job.elapsed_sec %} · {{ job.elapsed_sec }}s{% endif %}
+              </div>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+              <span class="job-status-{{ job.status }}">
+                {% if job.status == 'done' %}<i class="fas fa-check-circle me-1"></i>Hoàn tất
+                {% elif job.status == 'processing' %}<i class="fas fa-spinner fa-spin me-1"></i>Đang xử lý
+                {% elif job.status == 'error' %}<i class="fas fa-times-circle me-1"></i>Lỗi
+                {% else %}<i class="fas fa-clock me-1"></i>Chờ{% endif %}
+              </span>
+              {% if job.status == 'done' %}
+              <a href="/result/{{ job.job_id }}" class="btn-view">Xem kết quả →</a>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="empty-state">
+            <i class="fas fa-folder-open"></i>
+            Chưa có phiên phân tích nào.<br>
+            <a href="/" style="color:var(--accent)">Bắt đầu phân tích ngay →</a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- AGGREGATE STATS -->
+    <div class="col-lg-5">
+      {% set done_jobs = jobs | selectattr('status', 'equalto', 'done') | list %}
+      {% set total_rows_all = done_jobs | sum(attribute='total_rows') if done_jobs else 0 %}
+      {% set total_attacks_all = done_jobs | sum(attribute='summary.abnormal') if done_jobs else 0 %}
+
+      <div class="card-box mb-4">
+        <h6><i class="fas fa-gauge me-2" style="color:var(--accent)"></i>Thống kê tổng</h6>
+        <div class="row g-3">
+          <div class="col-6">
+            <div style="background:rgba(0,180,216,.07); border:1px solid rgba(0,180,216,.2); border-radius:8px; padding:14px; text-align:center;">
+              <div style="font-size:1.8rem; font-weight:800; color:var(--accent)">{{ done_jobs | length }}</div>
+              <div style="font-size:.75rem; color:#5e7d9c; text-transform:uppercase; letter-spacing:1px">Phiên hoàn tất</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div style="background:rgba(6,214,160,.07); border:1px solid rgba(6,214,160,.2); border-radius:8px; padding:14px; text-align:center;">
+              <div style="font-size:1.8rem; font-weight:800; color:#06d6a0">{{ total_rows_all | int }}</div>
+              <div style="font-size:.75rem; color:#5e7d9c; text-transform:uppercase; letter-spacing:1px">Tổng mẫu đã phân tích</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div style="background:rgba(239,35,60,.07); border:1px solid rgba(239,35,60,.2); border-radius:8px; padding:14px; text-align:center;">
+              <div style="font-size:1.8rem; font-weight:800; color:#ef233c">{{ total_attacks_all | int }}</div>
+              <div style="font-size:.75rem; color:#5e7d9c; text-transform:uppercase; letter-spacing:1px">Tổng mẫu tấn công</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div style="background:rgba(255,209,102,.07); border:1px solid rgba(255,209,102,.2); border-radius:8px; padding:14px; text-align:center;">
+              <div style="font-size:1.8rem; font-weight:800; color:#ffd166">
+                {% if total_rows_all > 0 %}
+                  {{ ((total_attacks_all / total_rows_all) * 100) | round(1) }}%
+                {% else %}–{% endif %}
+              </div>
+              <div style="font-size:.75rem; color:#5e7d9c; text-transform:uppercase; letter-spacing:1px">Tỷ lệ tấn công</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Model Info -->
+      <div class="card-box">
+        <h6><i class="fas fa-info-circle me-2" style="color:var(--accent)"></i>Thông tin mô hình</h6>
+        <table style="width:100%; font-size:.88rem; color:#8ba0b4;">
+          <tr><td style="padding:5px 0; color:#cdd9e5">Dataset</td><td>CICIDS2017</td></tr>
+          <tr><td style="padding:5px 0; color:#cdd9e5">Phase 1</td><td>Isolation Forest (n=100)</td></tr>
+          <tr><td style="padding:5px 0; color:#cdd9e5">Phase 2</td><td>LSTM 128→64→Dense</td></tr>
+          <tr><td style="padding:5px 0; color:#cdd9e5">Accuracy</td><td style="color:#06d6a0">96.4%</td></tr>
+          <tr><td style="padding:5px 0; color:#cdd9e5">F1 (DDoS)</td><td style="color:#06d6a0">0.974</td></tr>
+          <tr><td style="padding:5px 0; color:#cdd9e5">Classes</td><td>14 nhãn</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-5 mb-5 text-center">
+    <a href="/" class="btn" style="background:var(--accent); color:#000; font-weight:700; padding:12px 32px; border-radius:10px;">
+      <i class="fas fa-plus me-2"></i>Phân tích file mới
+    </a>
+  </div>
+</div>
+
+<footer>&copy; 2024 · NetGuard IDS · IF + LSTM</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

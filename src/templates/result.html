@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kết quả phân tích – NetGuard IDS</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary  : #0d1b2a;
+      --accent   : #00b4d8;
+      --card-bg  : #162032;
+      --border   : #1e3a5f;
+    }
+    body { background: var(--primary); color: #cdd9e5; font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+    .navbar { background: rgba(13,27,42,.95); border-bottom: 1px solid var(--border); }
+    .navbar-brand { color: var(--accent) !important; font-weight: 700; }
+    .nav-link { color: #8ba0b4 !important; }
+    .nav-link:hover { color: var(--accent) !important; }
+
+    .page-header {
+      padding: 40px 20px 24px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 32px;
+    }
+    .page-header h2 { font-size: 1.6rem; font-weight: 800; color: #e8f4f8; margin: 0; }
+    .page-header small { color: #5e7d9c; font-size: .85rem; }
+
+    /* ── STATUS BANNER ──────────────────────────────── */
+    #statusBanner {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px 24px;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .spinner-ring {
+      width: 48px; height: 48px;
+      border: 4px solid rgba(0,180,216,.2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── SUMMARY CARDS ──────────────────────────────── */
+    .summary-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px 20px;
+      text-align: center;
+    }
+    .summary-card .big-num { font-size: 2.2rem; font-weight: 800; display: block; line-height: 1; }
+    .summary-card .lbl { color: #5e7d9c; font-size: .78rem; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
+    .num-total   { color: var(--accent); }
+    .num-normal  { color: #06d6a0; }
+    .num-attack  { color: #ef233c; }
+    .num-rate    { color: #ffd166; }
+
+    /* ── CHARTS ─────────────────────────────────────── */
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .chart-card h6 { color: #e8f4f8; font-weight: 700; margin-bottom: 16px; font-size: 1rem; }
+
+    /* ── RESULTS TABLE ──────────────────────────────── */
+    .table-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 40px;
+      overflow: hidden;
+    }
+    .table-card h6 { color: #e8f4f8; font-weight: 700; margin-bottom: 16px; }
+    .table { color: #cdd9e5; font-size: .88rem; }
+    .table thead th {
+      background: rgba(0,180,216,.08);
+      color: var(--accent);
+      font-size: .75rem;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      border-color: var(--border);
+      padding: 10px 14px;
+    }
+    .table tbody td { border-color: rgba(30,58,95,.5); padding: 10px 14px; vertical-align: middle; }
+    .table tbody tr:hover { background: rgba(255,255,255,.03); }
+
+    /* Severity badges */
+    .sev-normal   { background: rgba(6,214,160,.15); color: #06d6a0; border: 1px solid rgba(6,214,160,.3); }
+    .sev-medium   { background: rgba(255,209,102,.15); color: #ffd166; border: 1px solid rgba(255,209,102,.3); }
+    .sev-high     { background: rgba(255,107,53,.15); color: #ff6b35; border: 1px solid rgba(255,107,53,.3); }
+    .sev-critical { background: rgba(239,35,60,.15); color: #ef233c; border: 1px solid rgba(239,35,60,.3); }
+
+    .badge-sev {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .confidence-bar {
+      height: 6px;
+      background: rgba(255,255,255,.08);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-top: 4px;
+      width: 80px;
+    }
+    .confidence-fill { height: 100%; background: var(--accent); border-radius: 3px; }
+
+    /* ── PAGINATION / SEARCH ────────────────────────── */
+    .table-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .search-input {
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--border);
+      color: #cdd9e5;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: .88rem;
+      width: 260px;
+    }
+    .search-input::placeholder { color: #4a6274; }
+    .search-input:focus { outline: none; border-color: var(--accent); }
+
+    footer { text-align: center; padding: 24px; color: #3d5a73; font-size: .82rem; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg sticky-top">
+  <div class="container">
+    <a class="navbar-brand" href="/"><i class="fas fa-shield-halved me-2"></i>NetGuard IDS</a>
+    <div class="d-flex gap-3 ms-auto">
+      <a class="nav-link" href="/"><i class="fas fa-upload me-1"></i>Phân tích mới</a>
+      <a class="nav-link" href="/dashboard"><i class="fas fa-chart-bar me-1"></i>Dashboard</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <h2><i class="fas fa-magnifying-glass-chart me-2" style="color:var(--accent)"></i>Kết Quả Phân Tích</h2>
+    <small>Job ID: <code style="color:var(--accent)">{{ job_id }}</code>
+      &nbsp;·&nbsp; File: <strong>{{ job.filename }}</strong>
+      &nbsp;·&nbsp; {{ job.file_size }} MB
+      &nbsp;·&nbsp; {{ job.created_at }}
+    </small>
+  </div>
+
+  <!-- STATUS BANNER (ẩn khi done) -->
+  <div id="statusBanner">
+    <div class="spinner-ring"></div>
+    <p id="statusText" style="margin:0; color:#8ba0b4; font-size:.95rem;">Đang khởi động pipeline phân tích...</p>
+  </div>
+
+  <!-- KẾT QUẢ (ẩn cho đến khi done) -->
+  <div id="resultSection" style="display:none">
+
+    <!-- SUMMARY CARDS -->
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="summary-card">
+          <span class="big-num num-total" id="numTotal">–</span>
+          <span class="lbl">Tổng mẫu</span>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="summary-card">
+          <span class="big-num num-normal" id="numNormal">–</span>
+          <span class="lbl">Bình thường</span>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="summary-card">
+          <span class="big-num num-attack" id="numAttack">–</span>
+          <span class="lbl">Bất thường</span>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="summary-card">
+          <span class="big-num num-rate" id="numRate">–</span>
+          <span class="lbl">Tỷ lệ tấn công</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHARTS ROW -->
+    <div class="row g-4 mb-2">
+      <div class="col-md-5">
+        <div class="chart-card">
+          <h6><i class="fas fa-chart-pie me-2" style="color:var(--accent)"></i>Phân phối nhãn</h6>
+          <canvas id="chartPie" height="260"></canvas>
+        </div>
+      </div>
+      <div class="col-md-7">
+        <div class="chart-card">
+          <h6><i class="fas fa-chart-bar me-2" style="color:var(--accent)"></i>Số lượng theo loại tấn công</h6>
+          <canvas id="chartBar" height="260"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULTS TABLE -->
+    <div class="table-card">
+      <div class="table-toolbar">
+        <h6 class="mb-0">
+          <i class="fas fa-table me-2" style="color:var(--accent)"></i>
+          Chi tiết kết quả <span id="tableSubtitle" style="color:#5e7d9c; font-weight:400; font-size:.85rem"></span>
+        </h6>
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍  Tìm theo nhãn...">
+      </div>
+      <div class="table-responsive" style="max-height:480px; overflow-y:auto;">
+        <table class="table table-borderless mb-0">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Nhãn</th>
+              <th>Mức độ</th>
+              <th>Độ tin cậy</th>
+              <th>IF Score</th>
+              <th>Nguồn</th>
+            </tr>
+          </thead>
+          <tbody id="resultsBody"></tbody>
+        </table>
+      </div>
+      <div class="mt-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <small style="color:#4a6274" id="tableInfo"></small>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm" style="background:rgba(255,255,255,.05); color:#8ba0b4; border:1px solid var(--border)" id="btnPrev">← Trước</button>
+          <button class="btn btn-sm" style="background:rgba(255,255,255,.05); color:#8ba0b4; border:1px solid var(--border)" id="btnNext">Tiếp →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mb-5">
+      <a href="/" class="btn" style="background:var(--accent); color:#000; font-weight:700; padding:12px 32px; border-radius:10px;">
+        <i class="fas fa-plus me-2"></i>Phân tích file mới
+      </a>
+    </div>
+
+  </div><!-- /resultSection -->
+</div>
+
+<footer>&copy; 2024 · NetGuard IDS · IF + LSTM</footer>
+
+<script>
+const JOB_ID = "{{ job_id }}";
+let allResults = [];
+let filteredResults = [];
+let currentPage = 1;
+const PAGE_SIZE = 50;
+
+// ── POLLING ───────────────────────────────────────────────────────────
+async function pollStatus() {
+  try {
+    const res  = await fetch(`/api/status/${JOB_ID}`);
+    const data = await res.json();
+
+    const statusText = document.getElementById("statusText");
+
+    if (data.status === "queued") {
+      statusText.textContent = "⏳ Đang chờ trong hàng đợi...";
+      setTimeout(pollStatus, 2000);
+    } else if (data.status === "processing") {
+      statusText.textContent = "🔄 Đang chạy pipeline IF + LSTM...";
+      setTimeout(pollStatus, 2000);
+    } else if (data.status === "done") {
+      document.getElementById("statusBanner").style.display = "none";
+      document.getElementById("resultSection").style.display = "block";
+      renderResults(data);
+    } else if (data.status === "error") {
+      statusText.innerHTML = `<span style="color:#ef233c">❌ Lỗi: ${data.message}</span>`;
+    } else {
+      setTimeout(pollStatus, 2000);
+    }
+  } catch (e) {
+    setTimeout(pollStatus, 3000);
+  }
+}
+
+// ── RENDER KẾT QUẢ ───────────────────────────────────────────────────
+function renderResults(data) {
+  const s = data.summary;
+
+  // Summary cards
+  document.getElementById("numTotal").textContent  = s.total.toLocaleString("vi-VN");
+  document.getElementById("numNormal").textContent = s.normal.toLocaleString("vi-VN");
+  document.getElementById("numAttack").textContent = s.abnormal.toLocaleString("vi-VN");
+  document.getElementById("numRate").textContent   = s.attack_rate + "%";
+  document.getElementById("tableSubtitle").textContent =
+    `(hiển thị ${Math.min(data.results.length, data.total_rows).toLocaleString()} / ${data.total_rows.toLocaleString()} dòng · ${data.elapsed_sec}s)`;
+
+  // Charts
+  renderPieChart(s.label_counts);
+  renderBarChart(s.label_counts);
+
+  // Table
+  allResults      = data.results;
+  filteredResults = [...allResults];
+  currentPage     = 1;
+  renderTable();
+}
+
+// ── PIE CHART ─────────────────────────────────────────────────────────
+function renderPieChart(labelCounts) {
+  const palette = [
+    "#06d6a0","#ef233c","#ffd166","#00b4d8","#ff6b35",
+    "#9b5de5","#f15bb5","#fee440","#00bbf9","#00f5d4",
+    "#e63946","#a8dadc","#457b9d","#1d3557"
+  ];
+  const labels = Object.keys(labelCounts);
+  const values = Object.values(labelCounts);
+
+  new Chart(document.getElementById("chartPie"), {
+    type: "doughnut",
+    data: {
+      labels,
+      datasets: [{ data: values, backgroundColor: palette, borderWidth: 2, borderColor: "#162032" }]
+    },
+    options: {
+      plugins: {
+        legend: { position: "bottom", labels: { color: "#8ba0b4", font: { size: 11 }, padding: 10 } }
+      },
+      cutout: "55%",
+    }
+  });
+}
+
+// ── BAR CHART ─────────────────────────────────────────────────────────
+function renderBarChart(labelCounts) {
+  const sorted = Object.entries(labelCounts).sort((a,b) => b[1]-a[1]);
+  const labels = sorted.map(e => e[0]);
+  const values = sorted.map(e => e[1]);
+
+  new Chart(document.getElementById("chartBar"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Số mẫu",
+        data: values,
+        backgroundColor: "rgba(0,180,216,.65)",
+        borderColor: "#00b4d8",
+        borderWidth: 1,
+        borderRadius: 5,
+      }]
+    },
+    options: {
+      indexAxis: "y",
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: "rgba(255,255,255,.05)" }, ticks: { color: "#8ba0b4" } },
+        y: { grid: { display: false }, ticks: { color: "#cdd9e5", font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── TABLE ─────────────────────────────────────────────────────────────
+const SEV_LABELS = {
+  normal: "Bình thường", medium: "Trung bình", high: "Cao", critical: "Nghiêm trọng"
+};
+
+function renderTable() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page  = filteredResults.slice(start, start + PAGE_SIZE);
+  const tbody = document.getElementById("resultsBody");
+
+  tbody.innerHTML = page.map(r => `
+    <tr>
+      <td style="color:#4a6274">${r.index + 1}</td>
+      <td><strong style="color:${r.severity === 'normal' ? '#06d6a0' : '#ef233c'}">${r.label_vi}</strong></td>
+      <td>
+        <span class="badge-sev sev-${r.severity}">${SEV_LABELS[r.severity] || r.severity}</span>
+      </td>
+      <td>
+        <span style="font-size:.82rem">${r.confidence}%</span>
+        <div class="confidence-bar">
+          <div class="confidence-fill" style="width:${r.confidence}%"></div>
+        </div>
+      </td>
+      <td style="color:#4a6274; font-family:monospace; font-size:.82rem">${r.if_score}</td>
+      <td>
+        <span style="font-size:.75rem; color:${r.source === 'IF+LSTM' ? '#ffd166' : '#8ba0b4'}">
+          ${r.source}
+        </span>
+      </td>
+    </tr>
+  `).join("");
+
+  const totalPages = Math.ceil(filteredResults.length / PAGE_SIZE);
+  document.getElementById("tableInfo").textContent =
+    `Trang ${currentPage}/${totalPages} · ${filteredResults.length.toLocaleString()} kết quả`;
+  document.getElementById("btnPrev").disabled = currentPage <= 1;
+  document.getElementById("btnNext").disabled = currentPage >= totalPages;
+}
+
+document.getElementById("btnPrev").addEventListener("click", () => {
+  if (currentPage > 1) { currentPage--; renderTable(); }
+});
+document.getElementById("btnNext").addEventListener("click", () => {
+  const totalPages = Math.ceil(filteredResults.length / PAGE_SIZE);
+  if (currentPage < totalPages) { currentPage++; renderTable(); }
+});
+
+document.getElementById("searchInput").addEventListener("input", function() {
+  const q = this.value.toLowerCase();
+  filteredResults = q ? allResults.filter(r =>
+    r.label_vi.toLowerCase().includes(q) || r.label.toLowerCase().includes(q)
+  ) : [...allResults];
+  currentPage = 1;
+  renderTable();
+});
+
+// Bắt đầu polling
+pollStatus();
+</script>
+</body>
+</html>
